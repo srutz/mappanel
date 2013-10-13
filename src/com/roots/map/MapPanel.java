@@ -169,7 +169,7 @@ public class MapPanel extends JPanel {
         new TileServer("http://tah.openstreetmap.org/Tiles/tile/", 17),
     };
 
-    private static final String NAMEFINDER_URL = "http://gazetteer.openstreetmap.org/namefinder/search.xml";
+    private static final String NAMEFINDER_URL = "http://nominatim.openstreetmap.org/search";
     private static final int PREFERRED_WIDTH = 320;
     private static final int PREFERRED_HEIGHT = 200;
 
@@ -555,7 +555,7 @@ public class MapPanel extends JPanel {
                     xform.scale(scale, scale);
                     xform.translate(-scalePosition.x, -scalePosition.y);
                     g.transform(xform);
-                    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
                 }
                 int width = mapPanel.getWidth();
                 int height = mapPanel.getHeight();
@@ -655,7 +655,7 @@ public class MapPanel extends JPanel {
                 int cx = smoothPivot.x, cy = smoothPivot.y;
                 drawScaledRect(g, cx, cy, animation.getFactor(), 2 - animation.getFactor());
             }
-            //System.err.println("smoothScale" + smoothScale);
+            System.err.println("paint..." + smoothScale);
         }
 
         if (smoothPosition == null) {
@@ -865,6 +865,7 @@ public class MapPanel extends JPanel {
             timer = new Timer(delay, this);
             timer.setCoalesce(true);
             timer.setInitialDelay(0);
+            timer.setRepeats(true);
         }
         
         public AnimationType getType() {
@@ -1160,7 +1161,6 @@ public class MapPanel extends JPanel {
         }
 
         public void mouseReleased(MouseEvent e) {
-            //setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
             handleDrag(e);
             downCoords = null;
             downPosition = null;
@@ -1172,15 +1172,10 @@ public class MapPanel extends JPanel {
         }
 
         public void mouseDragged(MouseEvent e) {
-            //setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             handlePosition(e);
             handleDrag(e);
         }
  
-        public void mouseExited(MouseEvent e) {
-            //setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-        }
-
         public void mouseEntered(MouseEvent me) {
             super.mouseEntered(me);
         }
@@ -1413,7 +1408,7 @@ public class MapPanel extends JPanel {
 
     private static final class EditorPane extends JEditorPane {
 
-        private final Font font = new JLabel().getFont(); //new Font(Font.DIALOG, Font.PLAIN, 12);
+        private final Font font = new JLabel().getFont();
         private final String stylesheet =
             "body { color:#808080; margin-top:0; margin-left:0; margin-bottom:0; margin-right:0; font-family:" + font.getName() + "; font-size:" + font.getSize()+ "pt;}" +
             "a    { color:#4040D9; margin-top:0; margin-left:0; margin-bottom:0; margin-right:0; font-family:" + font.getName() + "; font-size:" + font.getSize() + "pt;}";
@@ -1443,7 +1438,6 @@ public class MapPanel extends JPanel {
         private double lat, lon;
         private String name;
         private String category;
-        private String info;
         private int zoom;
         private String description = "";
 
@@ -1479,12 +1473,6 @@ public class MapPanel extends JPanel {
         public void setCategory(String category) {
             this.category = category;
         }
-        public String getInfo() {
-            return info;
-        }
-        public void setInfo(String info) {
-            this.info = info;
-        }
         public int getZoom() {
             return zoom;
         }
@@ -1498,7 +1486,7 @@ public class MapPanel extends JPanel {
             this.description = description;
         }
         public String toString() {
-            return "SearchResult [category=" + category + ", info=" + info + ", lat=" + lat + ", lon=" + lon
+            return "SearchResult [category=" + category + ", lat=" + lat + ", lon=" + lon
                     + ", name=" + name + ", type=" + type + ", zoom=" + zoom + ", description=" + description + "]";
         }
 
@@ -1586,7 +1574,7 @@ public class MapPanel extends JPanel {
             try {
                 // Create a URL for the desired page
                 String args = URLEncoder.encode(newSearch, "UTF-8");
-                String path = NAMEFINDER_URL + "?find= " + args;
+                String path = NAMEFINDER_URL + "?format=xml&q= " + args;
                 SAXParserFactory factory = SAXParserFactory.newInstance();
                 factory.setValidating(false);
                 factory.newSAXParser().parse(path, new DefaultHandler() {
@@ -1596,14 +1584,12 @@ public class MapPanel extends JPanel {
                     public void startElement(String uri, String localName, String qName, Attributes attributes) {
                         pathStack.add(qName);
                         String path = getPath();
-                        if ("named".equals(qName)) {
+                        if ("place".equals(qName)) {
                             SearchResult result = new SearchResult();
                             result.setType(attributes.getValue("type"));
                             result.setLat(tryDouble(attributes.getValue("lat")));
                             result.setLon(tryDouble(attributes.getValue("lon")));
-                            result.setName(attributes.getValue("name"));
-                            result.setCategory(attributes.getValue("category"));
-                            result.setInfo(attributes.getValue("info"));
+                            result.setName(attributes.getValue("display_name"));
                             result.setZoom(tryInteger(attributes.getValue("zoom")));
                             namedStack.add(result);
                             if (pathStack.size() == 2)
@@ -1613,7 +1599,7 @@ public class MapPanel extends JPanel {
                         }
                     }
                     public void endElement(String uri, String localName, String qName) throws SAXException {
-                        if ("named".equals(qName)) {
+                        if ("place".equals(qName)) {
                             namedStack.remove(namedStack.size() - 1);
                         } else if ("description".equals(qName)) {
                             namedStack.get(namedStack.size() - 1).setDescription(chars.toString());
@@ -1655,13 +1641,15 @@ public class MapPanel extends JPanel {
                 SearchResult result = results.get(i);
                 String description = result.getDescription();
                 description = description.replaceAll("\\[.*?\\]", "");
+                if (description.length() == 0)
+                    description = result.getName();
                 String shortName = result.getName();
                 shortName = shortName.replaceAll("\\s(.*)$", "");
-                String linkBody = shortName + " [" + result.getCategory() + "]";
+                String linkBody = shortName + (result.getCategory() != null && result.getCategory().length() > 0
+                        ? " [" + result.getCategory() + "] " : "");
+                linkBody = linkBody.trim().replaceAll(",$", "");
                 html.append("<a href='").append(i).append("'>").append(linkBody).append("</a><br>\r\n");
                 html.append("<i>").append(description).append("<br><br>\r\n");
-                //String description = result.getDescription() == null || result.getDescription().length() == 0 ? "-" : result.getDescription();
-                //html.append(description).append("<br><br>\r\n");
             }
             html.append("</body></html>\r\n");
             final String html_ = html.toString();
