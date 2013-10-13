@@ -173,7 +173,7 @@ public class MapPanel extends JPanel {
     private static final int PREFERRED_WIDTH = 320;
     private static final int PREFERRED_HEIGHT = 200;
 
-
+    private Object animationRenderingHints = RenderingHints.VALUE_INTERPOLATION_BILINEAR;
     private static final int ANIMATION_FPS = 15, ANIMATION_DURARTION_MS = 500;
     
 
@@ -201,7 +201,6 @@ public class MapPanel extends JPanel {
     public static String getTileString(TileServer tileServer, int xtile, int ytile, int zoom) {
         String number = ("" + zoom + "/" + xtile + "/" + ytile);
         String url = tileServer.getURL() + number + ".png";
-        //System.err.println(url);
         return url;
     }
 
@@ -274,7 +273,6 @@ public class MapPanel extends JPanel {
             try {
                 URL url = new URL(urlstring);
                 Object content = url.getContent();
-                //System.err.println(content);
             } catch (Exception e) {
                 log.log(Level.SEVERE, "failed to get content from url " + urlstring);
                 tileServer.setBroken(true);
@@ -314,6 +312,16 @@ public class MapPanel extends JPanel {
         while (getZoom() > tileServer.getMaxZoom())
             zoomOut(new Point(getWidth() / 2, getHeight() / 2));
         checkActiveTileServer();
+    }
+    
+    /**
+     * Iff animations are used, during the animation this method
+     * will return <code>true</code>. One might use this state to disable
+     * own overlay drawing during animations.
+     * @return <code>true</code> if animation is in progress
+     */
+    public boolean isCurrenlyInAnimationTransition() {
+        return smoothPosition != null; 
     }
 
     public boolean isUseAnimations() {
@@ -379,6 +387,9 @@ public class MapPanel extends JPanel {
         firePropertyChange("zoom", oldZoom, zoom);
     }
 
+    public Dimension getMapSize() {
+        return mapSize;
+    }
 
     public void zoomInAnimated(Point pivot) {
         if (!useAnimations) {
@@ -497,13 +508,38 @@ public class MapPanel extends JPanel {
                 position2lon(position.x, getZoom()),
                 position2lat(position.y, getZoom()));
     }
-
+    
     public Point computePosition(Point.Double coords) {
         int x = lon2position(coords.x, getZoom());
         int y = lat2position(coords.y, getZoom());
         return new Point(x, y);
     }
 
+    /**
+     * Gets the coordinates to use for overdraw rendering, eg the swing coordinates
+     * that you could use in paintComponent or a glasspane.
+     * @param coords lon and lat as a Point
+     * @return the screen coords 
+     */
+    public Point getScreenCoordinates(Point.Double coords) {
+        Point position = computePosition(coords);
+        Point mapPosition = getMapPosition();
+        position.x -= mapPosition.x;
+        position.y -= mapPosition.y;
+        return position;
+    }
+    
+    /**
+     * Gets the coordinates to use for overdraw rendering, eg the swing coordinates
+     * that you could use in paintComponent or a glasspane.
+     * @param lon longitude
+     * @param lon latitude
+     * @return the screen coords 
+     */
+    public Point getScreenCoordinates(double lon, double lat) {
+        return getScreenCoordinates(new Point.Double(lon, lat));
+    }
+    
     protected void paintComponent(Graphics gOrig) {
         super.paintComponent(gOrig);
         Graphics2D g = (Graphics2D) gOrig.create();
@@ -555,7 +591,7 @@ public class MapPanel extends JPanel {
                     xform.scale(scale, scale);
                     xform.translate(-scalePosition.x, -scalePosition.y);
                     g.transform(xform);
-                    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, mapPanel.animationRenderingHints );
                 }
                 int width = mapPanel.getWidth();
                 int height = mapPanel.getHeight();
@@ -579,10 +615,6 @@ public class MapPanel extends JPanel {
                     Rectangle magnifyRegion = new Rectangle(mapPanel.magnifyRegion);
                     magnifyRegion.translate(-mapPosition.x, -mapPosition.y);
                     g.setColor(Color.yellow);
-                    // TODO: continue here later
-                    //System.err.println("fill : " + mapPosition);
-                    //System.err.println("fill : " + magnifyRegion);
-                    //g.fillRect(magnifyRegion.x, magnifyRegion.y, magnifyRegion.width, magnifyRegion.height);
                 }
             } finally {
                 g.dispose();
@@ -606,7 +638,6 @@ public class MapPanel extends JPanel {
                 if (image == null) {
                     final String url = getTileString(tileServer, x, y, zoom);
                     try {
-                        //System.err.println("loading: " + url);
                         image = Toolkit.getDefaultToolkit().getImage(new URL(url));
                     } catch (Exception e) {
                         log.log(Level.SEVERE, "failed to load url \"" + url + "\"", e);
@@ -655,7 +686,6 @@ public class MapPanel extends JPanel {
                 int cx = smoothPivot.x, cy = smoothPivot.y;
                 drawScaledRect(g, cx, cy, animation.getFactor(), 2 - animation.getFactor());
             }
-            System.err.println("paint..." + smoothScale);
         }
 
         if (smoothPosition == null) {
@@ -666,6 +696,10 @@ public class MapPanel extends JPanel {
 
         long t1 = System.currentTimeMillis();
         stats.dt = t1 - t0;
+        if (t1 - t0 > 500 && isUseAnimations()) {
+            // takes suspiciously long on my mac, so lets downgrade if > some high value
+            animationRenderingHints = RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
+        }
     }
 
 
