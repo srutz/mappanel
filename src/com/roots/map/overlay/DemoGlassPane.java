@@ -7,7 +7,7 @@ public class DemoGlassPane extends PointSetMarkingGlassPane {
 
     public static final Point2D.Double ARTYOM = new Point.Double(132.18381, 43.35514);
 
-    public static final Point2D.Double COLOGNE = new Point.Double(50.94992, 6.96675);
+    public static final Point2D.Double COLOGNE = new Point.Double(6.96202, 50.93575);
 
     public DemoGlassPane(ILatLongToScreenCoordinatesConverter latitudeLongitudeToScreenCoordinatesConverter) {
         super(latitudeLongitudeToScreenCoordinatesConverter);
