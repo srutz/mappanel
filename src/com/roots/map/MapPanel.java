@@ -364,8 +364,14 @@ public class MapPanel extends JPanel {
         if (mapPosition.x == x && mapPosition.y == y)
             return;
         Point oldMapPosition = getMapPosition();
-        mapPosition.x = x;
-        mapPosition.y = y;
+		int xMax = getXMax();
+		if (x > xMax) {
+			mapPosition.x = x - xMax;
+		} else if (x < 0) {
+			mapPosition.x = x + xMax;
+		} else {
+			mapPosition.x = x;
+		}
         firePropertyChange("mapPosition", oldMapPosition, getMapPosition());
     }
 
@@ -600,11 +606,20 @@ public class MapPanel extends JPanel {
                 int x1 = (int) Math.ceil(((double) mapPosition.x + width) / TILE_SIZE);
                 int y1 = (int) Math.ceil(((double) mapPosition.y + height) / TILE_SIZE);
 
+                int xTileCount = 1 << zoom;
+				// wrap past +/- 180 longitude:
+				int xOffset = 0;
+				if (x1 > xTileCount) {
+					xOffset = xTileCount - x1;
+				}
+
                 int dy = y0 * TILE_SIZE - mapPosition.y;
                 for (int y = y0; y < y1; ++y) {
                     int dx = x0 * TILE_SIZE - mapPosition.x;
-                    for (int x = x0; x < x1; ++x) {
-                        paintTile(g, dx, dy, x, y);
+					for (int x = (x0 + xOffset); x < (x1 + xOffset); ++x) {
+						// wrap past +/- 180 longitude:
+						int x_ = (x - xOffset) % xTileCount;
+						paintTile(g, dx, dy, x_, y);
                         dx += TILE_SIZE;
                         ++mapPanel.getStats().tileCount;
                     }
@@ -730,7 +745,7 @@ public class MapPanel extends JPanel {
 
     public static double position2lon(int x, int z) {
         double xmax = TILE_SIZE * (1 << z);
-        return x / xmax * 360.0 - 180;
+        return (x / xmax * 360.0) % 360.0 - 180;
     }
 
     public static double position2lat(int y, int z) {
@@ -739,7 +754,7 @@ public class MapPanel extends JPanel {
     }
 
     public static double tile2lon(int x, int z) {
-        return x / Math.pow(2.0, z) * 360.0 - 180;
+        return (x / Math.pow(2.0, z) * 360.0) % 360.0 - 180;
     }
 
     public static double tile2lat(int y, int z) {
