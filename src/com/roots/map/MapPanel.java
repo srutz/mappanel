@@ -364,7 +364,8 @@ public class MapPanel extends JPanel {
         if (mapPosition.x == x && mapPosition.y == y)
             return;
         Point oldMapPosition = getMapPosition();
-		int xMax = getXMax();
+        mapPosition.y = y;
+	        int xMax = getXMax();
 		if (x > xMax) {
 			mapPosition.x = x - xMax;
 		} else if (x < 0) {
