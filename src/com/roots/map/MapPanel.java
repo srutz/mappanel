@@ -86,6 +86,7 @@ import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 import javax.xml.parsers.SAXParserFactory;
 
+import com.roots.map.overlay.ILatLongToScreenCoordinatesConverter;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
@@ -129,7 +130,7 @@ import org.xml.sax.helpers.DefaultHandler;
  * @author stepan.rutz
  * @version $Revision$
  */
-public class MapPanel extends JPanel {
+public class MapPanel extends JPanel implements ILatLongToScreenCoordinatesConverter {
 
     private static final Logger log = Logger.getLogger(MapPanel.class.getName());
 
