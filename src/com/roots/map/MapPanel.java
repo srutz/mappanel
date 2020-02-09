@@ -1939,6 +1939,9 @@ public class MapPanel extends JPanel {
     }
 
     public static void main(String[] args) {
+        // HTTP User-agent is required to be set by OSM Tile Usage Policy to avoid an error.
+        System.setProperty("http.agent", "MapPanel app (https://github.com/srutz/mappanel)");
+	    
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
                 try {
